@@ -1,6 +1,8 @@
 package eu.dnetlib.scalafixer
 
 import org.objectweb.asm._
+import org.objectweb.asm.util._
+import org.objectweb.asm.commons._
 import java.io._
 import org.apache.commons.io.IOUtils
 
@@ -20,7 +22,11 @@ trait Fixer {
 class FixerImpl extends Fixer {
   def fix(clazz : InputStream) = {
     val reader = new ClassReader(clazz)
-    val writer = new ClassWriter(reader, 0)
+    val writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES)
+    // val vis = new CheckClassAdapter(writer)
+//    val vis = new EmptyVisitor()
+//    reader.accept(vis, 0)
+    reader.accept(writer, 0)
     writer.toByteArray()
   }
 }

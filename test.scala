@@ -10,6 +10,6 @@ val inspector = injector.instance[Inspector]
 
 println(fixer)
 
-fixer.fixAndSave("/tmp/List.class", "/tmp/out/List.class")
+fixer.fixAndSave("/tmp/Ta.class", "/tmp/out/Ta.class")
 //inspector.inspect("/tmp/List.class")
-inspector.inspect("/tmp/out/List.class")
+inspector.inspect("/tmp/out/Ta.class")
