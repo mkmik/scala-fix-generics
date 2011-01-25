@@ -33,6 +33,10 @@ Usage
    cd tmp
    unzip ...../scala-library.jar
    ../scala-fix-generics .
+   jar cf ../scala-library.jar .
+   
+Now you can try  to replace this scala library jar with the one in your eclipse classpath. It should work, if you still get exceptions,
+please tell me which class causes the issue and the eclipse log in ~/workspace/metadata/.log
 
 Build
 =====
