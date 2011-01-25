@@ -21,7 +21,9 @@ trait Fixer {
 
 }
 
-trait FixVisitor extends ClassVisitor {
+trait FixVisitor extends ClassVisitor
+
+abstract class AbstractFixVisitor @Inject() (v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
   val GenDecl = "^(<[^>]*>)(.*)".r
 
   override def visitMethod(access: Int, name: String, desc: String, signature: String, exceptions: Array[String]) =  {
@@ -29,18 +31,24 @@ trait FixVisitor extends ClassVisitor {
     super.visitMethod(access, name, desc, sig, exceptions)
   }
 
+  def fix(name: String, s: String): String = {
+    println("FIXING method name: %s sig: %s".format(name, s))
+    fix(s)
+  }
+
+
   def wrong(s: String): Boolean
-  def fix(name: String, s: String): String
+  def fix(s: String): String
 }
 
 /**
  * Fix the generic declaration by defaulting to "extends Object"
  * Assumes that the scala compiler emits xx:Iyy:... instead of xx:Lclass;yy:...
  * */ 
-class FixVisitorImpl @Inject() (v: ClassVisitor) extends ClassAdapter(v) with FixVisitor {
+class FixVisitorImpl @Inject() (v: ClassVisitor) extends AbstractFixVisitor(v) {
 
   /** check if the generic declaration appears to be truncated */
-  def wrong(s: String): Boolean = {
+  def oldWrong(s: String): Boolean = {
     s match {
       case GenDecl(decl, _) => 
         decl.count(_ == ':') != decl.count(_ == ';')
@@ -48,18 +56,26 @@ class FixVisitorImpl @Inject() (v: ClassVisitor) extends ClassAdapter(v) with Fi
     }    
   }
 
-  def fix(name: String, s: String): String = {
-    println("FIXING method name: %s sig: %s".format(name, s))
-    fix(s)
-  }
 
-  def fix(s: String): String = s.replaceAll(":I", ":Ljava/lang/Object;")
+  /** check if the generic declaration appears to be truncated */
+  override def wrong(s: String): Boolean = oldWrong(s) && s.contains(":I")
+
+  override def fix(s: String): String = s.replaceAll(":I", ":Ljava/lang/Object;")
 
 }
 
 /** This is another implementation using regexps, it could be more useful if we find other buggy generators */
-class FixVisitorRegexpImpl @Inject() (v: ClassVisitor) extends ClassAdapter(v) with FixVisitor {
-  def fixWithRegexp(s: String) = {
+class FixVisitorRegexpImpl @Inject() (v: ClassVisitor) extends AbstractFixVisitor(v) {
+  /** check if the generic declaration appears to be truncated */
+  override def wrong(s: String): Boolean = {
+    s match {
+      case GenDecl(decl, _) => 
+        decl.count(_ == ':') != decl.count(_ == ';')
+      case _ => false
+    }    
+  }
+
+  override def fix(s: String) = {
 
     def enhance(m: String) = m match {
       case x if x.contains(":") => x; 
@@ -93,12 +109,19 @@ trait MultiFixer {
   def fix(path : String)
 }
 
-class DirFixer extends MultiFixer {
+class DirFixer @Inject() (val fixer: Fixer) extends MultiFixer {
   def fix(path : String) {
+    import RichFile._
+
+    val root = new File(path)
+ 
+    // filtering comes for free
+    for(f <- root.andTree; if f.getName.endsWith(".class")) 
+      fixer.fixAndSave(f.getPath(), f.getPath())
   }
 }
 
-class JarFixer extends MultiFixer {
+class JarFixer @Inject() (val fixer: Fixer) extends MultiFixer {
   def fix(path : String) {
   }
 }

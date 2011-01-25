@@ -13,5 +13,9 @@ println(fixer)
 val cname = "List.class"
 //val cname = "Ta.class"
 
-fixer.fixAndSave("/tmp/" + cname, "/tmp/out/" + cname)
-inspector.inspect("/tmp/out/" + cname)
+//fixer.fixAndSave("/tmp/" + cname, "/tmp/out/" + cname)
+//inspector.inspect("/tmp/out/" + cname)
+
+
+val dirFixer = injector.instance[DirFixer]
+dirFixer.fix("/tmp/scala-lib")
