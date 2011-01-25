@@ -21,31 +21,33 @@ trait Fixer {
 
 }
 
-trait FixVisitor extends ClassVisitor
-
-abstract class AbstractFixVisitor @Inject() (v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
+trait SignatureFixer {
   val GenDecl = "^(<[^>]*>)(.*)".r
 
+  def wrong(s: String): Boolean
+  def fix(s: String): String
+}
+
+trait FixVisitor extends ClassVisitor
+
+class FixVisitorImpl @Inject() (val signatureFixer: SignatureFixer, v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
+
   override def visitMethod(access: Int, name: String, desc: String, signature: String, exceptions: Array[String]) =  {
-    val sig = if(signature != null && wrong(signature)) fix(name, signature) else signature
+    val sig = if(signature != null && signatureFixer.wrong(signature)) fix(name, signature) else signature
     super.visitMethod(access, name, desc, sig, exceptions)
   }
 
   def fix(name: String, s: String): String = {
     println("FIXING method name: %s sig: %s".format(name, s))
-    fix(s)
+    signatureFixer.fix(s)
   }
-
-
-  def wrong(s: String): Boolean
-  def fix(s: String): String
 }
 
 /**
  * Fix the generic declaration by defaulting to "extends Object"
  * Assumes that the scala compiler emits xx:Iyy:... instead of xx:Lclass;yy:...
  * */ 
-class FixVisitorImpl @Inject() (v: ClassVisitor) extends AbstractFixVisitor(v) {
+class StupidSignatureFixer extends SignatureFixer {
 
   /** check if the generic declaration appears to be truncated */
   def oldWrong(s: String): Boolean = {
@@ -65,7 +67,7 @@ class FixVisitorImpl @Inject() (v: ClassVisitor) extends AbstractFixVisitor(v) {
 }
 
 /** This is another implementation using regexps, it could be more useful if we find other buggy generators */
-class FixVisitorRegexpImpl @Inject() (v: ClassVisitor) extends AbstractFixVisitor(v) {
+class RegexpSignatureFixer extends SignatureFixer {
   /** check if the generic declaration appears to be truncated */
   override def wrong(s: String): Boolean = {
     s match {
@@ -90,14 +92,14 @@ class FixVisitorRegexpImpl @Inject() (v: ClassVisitor) extends AbstractFixVisito
 
 }
 
-class FixerImpl @Inject() (val visitorFactory: ClassVisitor => FixVisitor) extends Fixer {
+class FixerImpl @Inject() (val signatureFixer: SignatureFixer, val visitorFactory: (SignatureFixer, ClassVisitor) => FixVisitor) extends Fixer {
   def fix(clazz : InputStream) = {
     val reader = new ClassReader(clazz)
 //    val flags = ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES
     val flags = 0
     val writer = new ClassWriter(reader, flags)
     
-    val vis = new FixVisitorImpl(writer)
+    val vis = visitorFactory(signatureFixer, writer)
 
     reader.accept(vis, 0)
     writer.toByteArray()

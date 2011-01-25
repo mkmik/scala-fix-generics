@@ -10,7 +10,8 @@ import org.objectweb.asm._
 case class DefaultModule() extends AbstractModule with ScalaModule {
   def configure() {
     bind[Fixer].to[FixerImpl]
-    bind[ClassVisitor => FixVisitor].toInstance {cv => new FixVisitorImpl(cv)}
+    bind[SignatureFixer].to[StupidSignatureFixer]
+    bind[(SignatureFixer, ClassVisitor) => FixVisitor].toInstance {(sf, cv) => new FixVisitorImpl(sf, cv)}
 
     bind[Inspector].to[InspectorImpl]
   }
