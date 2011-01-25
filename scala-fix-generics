@@ -1,0 +1,12 @@
+#!/bin/sh
+JAR=./target/scala_2.8.1/scalafixgenerics_2.8.1-assembly-1.0.jar
+
+if [ ! -e "$JAR" ]; then
+    echo "build the tool with:"
+    echo "sbt update"
+    echo "sbt assembly"
+
+    exit 1
+fi
+
+java -jar $JAR $@

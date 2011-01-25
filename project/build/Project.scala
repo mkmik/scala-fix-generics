@@ -1,6 +1,6 @@
 import sbt._
 
-class Project(info: ProjectInfo) extends DefaultProject(info) {
+class Project(info: ProjectInfo) extends DefaultProject(info)  with AssemblyProject {
   val scalatoolsRelease = "Scala Tools Release" at "http://scala-tools.org/repo-releases/"
   val scalatoolsSnapshot = "Scala Tools Snapshot" at "http://scala-tools.org/repo-snapshots/"
   val mavenRepository = "maven" at "http://repo1.maven.org/maven2/"
@@ -21,4 +21,6 @@ class Project(info: ProjectInfo) extends DefaultProject(info) {
   val asmu = "asm" % "asm-util" % "3.3"
 
   val commonsio = "commons-io" % "commons-io" % "2.0.1"
+
+  override def mainClass = Some("eu.dnetlib.scalafixer.Main")
 }

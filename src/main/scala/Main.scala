@@ -12,7 +12,9 @@ object Main {
       val injector = Guice createInjector DefaultModule()
       
       val dirFixer = injector.instance[DirFixer]
-      dirFixer.fix(args(1))
+
+      println("scanning classes in dir %s".format(args(0)))
+      dirFixer.fix(args(0))
     }
   }
 }
