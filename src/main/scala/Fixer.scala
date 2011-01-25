@@ -30,24 +30,44 @@ trait SignatureFixer {
 
 trait FixVisitor extends ClassVisitor
 
-class FixVisitorImpl @Inject() (val signatureFixer: SignatureFixer, v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
+class FixVisitorImpl @Inject() (val signatureFixers: List[SignatureFixer], v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
 
   override def visitMethod(access: Int, name: String, desc: String, signature: String, exceptions: Array[String]) =  {
-    val sig = if(signature != null && signatureFixer.wrong(signature)) fix(name, signature) else signature
+
+    var sig = signature
+    signatureFixers.foreach { f =>
+      if(name != "<init>" && !verify(sig))
+        sig = if(f.wrong(signature)) fix(name, f, signature) else sig
+    }
+
     super.visitMethod(access, name, desc, sig, exceptions)
   }
 
-  def fix(name: String, s: String): String = {
+  def fix(name: String, fixer: SignatureFixer, s: String): String = {
     println("FIXING method name: %s sig: %s".format(name, s))
-    signatureFixer.fix(s)
+    fixer.fix(s)
+  }
+
+  def verify(sig: String): Boolean = {
+    if(sig == null)
+      return true
+    try {
+      sun.reflect.generics.parser.SignatureParser.make().parseMethodSig(sig)
+      true
+    } catch {
+      case _: java.lang.reflect.GenericSignatureFormatError => 
+//        println("signature is invalid %s".format(sig))
+        false
+    }
   }
 }
 
 /**
  * Fix the generic declaration by defaulting to "extends Object"
  * Assumes that the scala compiler emits xx:Iyy:... instead of xx:Lclass;yy:...
+ * The separator can be I or other chars, from what I saw...
  * */ 
-class StupidSignatureFixer extends SignatureFixer {
+class StupidSignatureFixer(val sep: String) extends SignatureFixer {
 
   /** check if the generic declaration appears to be truncated */
   def oldWrong(s: String): Boolean = {
@@ -58,11 +78,10 @@ class StupidSignatureFixer extends SignatureFixer {
     }    
   }
 
-
   /** check if the generic declaration appears to be truncated */
-  override def wrong(s: String): Boolean = oldWrong(s) && s.contains(":I")
+  override def wrong(s: String): Boolean = oldWrong(s) && s.contains(":" + sep)
 
-  override def fix(s: String): String = s.replaceAll(":I", ":Ljava/lang/Object;")
+  override def fix(s: String): String = s.replaceAll(":" + sep, ":Ljava/lang/Object;")
 
 }
 
@@ -92,14 +111,23 @@ class RegexpSignatureFixer extends SignatureFixer {
 
 }
 
-class FixerImpl @Inject() (val signatureFixer: SignatureFixer, val visitorFactory: (SignatureFixer, ClassVisitor) => FixVisitor) extends Fixer {
+/** if it's still invalid, then just suppress the signature */
+class NullSignatureFixer extends SignatureFixer {
+  override def wrong(s: String) = true
+  override def fix(s: String) = {
+    println("cannot fix %s, removing".format(s))
+    null
+  }
+}
+
+class FixerImpl @Inject() (val signatureFixers: List[SignatureFixer], val visitorFactory: (List[SignatureFixer], ClassVisitor) => FixVisitor) extends Fixer {
   def fix(clazz : InputStream) = {
     val reader = new ClassReader(clazz)
-//    val flags = ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES
+//    val flags = ClassWriter.COMPUTE_MAXS | ClassWriter.COMPU
     val flags = 0
     val writer = new ClassWriter(reader, flags)
     
-    val vis = visitorFactory(signatureFixer, writer)
+    val vis = visitorFactory(signatureFixers, writer)
 
     reader.accept(vis, 0)
     writer.toByteArray()
