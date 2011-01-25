@@ -10,6 +10,8 @@ val inspector = injector.instance[Inspector]
 
 println(fixer)
 
-fixer.fixAndSave("/tmp/Ta.class", "/tmp/out/Ta.class")
-//inspector.inspect("/tmp/List.class")
-inspector.inspect("/tmp/out/Ta.class")
+val cname = "List.class"
+//val cname = "Ta.class"
+
+fixer.fixAndSave("/tmp/" + cname, "/tmp/out/" + cname)
+inspector.inspect("/tmp/out/" + cname)
