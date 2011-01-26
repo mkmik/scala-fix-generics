@@ -17,5 +17,8 @@ val cname = "List.class"
 //inspector.inspect("/tmp/out/" + cname)
 
 
-val dirFixer = injector.instance[DirFixer]
-dirFixer.fix("/tmp/scala-lib")
+//val dirFixer = injector.instance[DirFixer]
+//dirFixer.fix("/tmp/scala-lib")
+
+val jarFixer = injector.instance[JarFixer]
+jarFixer.fix("scala-library.jar")

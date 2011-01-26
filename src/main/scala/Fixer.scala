@@ -6,6 +6,7 @@ import org.objectweb.asm._
 import org.objectweb.asm.util._
 import org.objectweb.asm.commons._
 import java.io._
+import java.util.jar._
 import org.apache.commons.io.IOUtils
 import scala.util.matching.Regex.Match
 
@@ -179,11 +180,10 @@ class FixerImpl @Inject() (val signatureFixers: List[SignatureFixer], val visito
 
 /** Fixes multiple classes */
 trait MultiFixer {
-  def fix(path : String)
 }
 
 class DirFixer @Inject() (val fixer: Fixer) extends MultiFixer {
-  def fix(path : String) {
+  def fix(path: String) {
     import RichFile._
 
     val root = new File(path)
@@ -195,6 +195,24 @@ class DirFixer @Inject() (val fixer: Fixer) extends MultiFixer {
 }
 
 class JarFixer @Inject() (val fixer: Fixer) extends MultiFixer {
-  def fix(path : String) {
+  def fix(path: String, path2: String) {
+    val ji = new JarInputStream(new FileInputStream(path))
+    val jo = new JarOutputStream(new FileOutputStream(path2), ji.getManifest())
+
+    import Stream._
+    def next: Stream[JarEntry] = Option(ji.getNextJarEntry) match {
+      case Some(a) => cons(a, next)
+      case None => empty
+    }
+
+    val entries = cons(ji.getNextJarEntry, next)
+
+    def copy(entry: JarEntry) {
+      jo.putNextEntry(entry)
+      IOUtils.copy(ji, jo)
+    }
+
+    entries.foreach(copy)
+    jo.close()
   }
 }
