@@ -7,6 +7,7 @@ import org.objectweb.asm.util._
 import org.objectweb.asm.commons._
 import java.io._
 import org.apache.commons.io.IOUtils
+import scala.util.matching.Regex
 
 /** Fixes a single class */
 trait Fixer {
@@ -22,7 +23,7 @@ trait Fixer {
 }
 
 trait SignatureFixer {
-  val GenDecl = "^(<[^>]*>)(.*)".r
+  val GenDecl = "^<([^>]*)>(.*)".r
 
   def wrong(s: String): Boolean
   def fix(s: String): String
@@ -40,11 +41,15 @@ class FixVisitorImpl @Inject() (val signatureFixers: List[SignatureFixer], v: Cl
         sig = if(f.wrong(signature)) fix(name, f, signature) else sig
     }
 
+    if(sig != signature) {
+      println("FIXING method %s:\n    %s\n to %s".format(name, signature, sig))
+    }
+
     super.visitMethod(access, name, desc, sig, exceptions)
   }
 
   def fix(name: String, fixer: SignatureFixer, s: String): String = {
-    println("FIXING method name: %s sig: %s".format(name, s))
+    //println("FIXING method name: %s sig: %s".format(name, s))
     fixer.fix(s)
   }
 
@@ -85,8 +90,45 @@ class StupidSignatureFixer(val sep: String) extends SignatureFixer {
 
 }
 
+/**
+ * Fix the generic declaration by defaulting to "extends Object"
+ * Assumes that the scala compiler emits xx:Iyy:... instead of xx:Lclass;yy:...
+ * Where "I" stands for a primitive type tag.
+ * */ 
+class PrimitiveSignatureFixer extends SignatureFixer {
+  val primitives = "CDFIJSZ"
+
+//  val Unwrap = "^<(.*)>$".r
+  val Component = """([^:]+):(\[?(I|L[^;]*;))""".r
+
+  /** check if the generic declaration appears to be truncated */
+  def wrong(s: String): Boolean = {
+    s match {
+      case GenDecl(decl, _) => 
+        decl.count(_ == ':') != decl.count(_ == ';')
+      case _ => false
+    }    
+  }
+
+  override def fix(s: String): String = {
+    val GenDecl(gen, rest) = GenDecl.findFirstMatchIn(s).get
+    fixInner(gen) + rest
+  }
+
+  def fixInner(s: String): String = Component.findAllIn(s).matchData.map(fixPair).mkString("<","",">")
+
+  def fixPair(s: Regex.Match): String = s match {
+    case Component(param, bound, _) => "%s:%s".format(param, fixPrimitive(bound))
+  }
+
+  def fixPrimitive(s: String) = if(primitives.contains(s)) "Ljava/lang/Object;" else s
+
+}
+
+
 /** This is another implementation using regexps, it could be more useful if we find other buggy generators */
 class RegexpSignatureFixer extends SignatureFixer {
+
   /** check if the generic declaration appears to be truncated */
   override def wrong(s: String): Boolean = {
     s match {
