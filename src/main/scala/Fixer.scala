@@ -7,10 +7,11 @@ import org.objectweb.asm.util._
 import org.objectweb.asm.commons._
 import java.io._
 import org.apache.commons.io.IOUtils
-import scala.util.matching.Regex
+import scala.util.matching.Regex.Match
 
 /** Fixes a single class */
 trait Fixer {
+
   def fix(clazz : InputStream) : Array[Byte]
 
   def fix(fileName : String) : Array[Byte] = fix(new FileInputStream(fileName))
@@ -24,6 +25,7 @@ trait Fixer {
 
 trait SignatureFixer {
   val GenDecl = "^<([^>]*)>(.*)".r
+  type =>?[-A, +B] = PartialFunction[A, B]
 
   def wrong(s: String): Boolean
   def fix(s: String): String
@@ -117,9 +119,8 @@ class PrimitiveSignatureFixer extends SignatureFixer {
 
   def fixInner(s: String): String = Component.findAllIn(s).matchData.map(fixPair).mkString("<","",">")
 
-  def fixPair(s: Regex.Match): String = s match {
-    case Component(param, bound, _) => "%s:%s".format(param, fixPrimitive(bound))
-  }
+  val fixPair: Match =>? String = { case Component(param, bound, _) => "%s:%s".format(param, fixPrimitive(bound)) }
+  
 
   def fixPrimitive(s: String) = if(primitives.contains(s)) "Ljava/lang/Object;" else s
 
