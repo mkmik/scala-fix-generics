@@ -36,24 +36,26 @@ trait FixVisitor extends ClassVisitor
 
 class FixVisitorImpl @Inject() (val signatureFixers: List[SignatureFixer], v: ClassVisitor) extends ClassAdapter(v)  with FixVisitor {
 
+  var className: String = _
+
+  override def visit(version: Int, access: Int, name: String, signature: String, superName: String, interfaces: Array[String]) =  {
+    className = name
+    super.visit(version, access, name, signature, superName, interfaces)
+  }
+
+
   override def visitMethod(access: Int, name: String, desc: String, signature: String, exceptions: Array[String]) =  {
 
     var sig = signature
     signatureFixers.foreach { f =>
       if(name != "<init>" && !verify(sig))
-        sig = if(f.wrong(signature)) fix(name, f, signature) else sig
+        sig = if(f.wrong(signature)) f.fix(signature) else sig
     }
 
-    if(sig != signature) {
-      println("FIXING method %s:\n    %s\n to %s".format(name, signature, sig))
-    }
+    if(sig != signature)
+      println("FIXING %s.%s:\n    %s\n to %s".format(className, name, signature, sig))
 
     super.visitMethod(access, name, desc, sig, exceptions)
-  }
-
-  def fix(name: String, fixer: SignatureFixer, s: String): String = {
-    //println("FIXING method name: %s sig: %s".format(name, s))
-    fixer.fix(s)
   }
 
   def verify(sig: String): Boolean = {
@@ -101,8 +103,7 @@ class StupidSignatureFixer(val sep: String) extends SignatureFixer {
 class PrimitiveSignatureFixer extends SignatureFixer {
   val primitives = "CDFIJSZ"
 
-//  val Unwrap = "^<(.*)>$".r
-  val Component = """([^:]+):(\[?(I|L[^;]*;))""".r
+  val Component = """([^:]+):(\[?([%s]|L[^;]*;))""".format(primitives).r
 
   /** check if the generic declaration appears to be truncated */
   def wrong(s: String): Boolean = {
@@ -208,8 +209,9 @@ class JarFixer @Inject() (val fixer: Fixer) extends MultiFixer {
     val entries = cons(ji.getNextJarEntry, next)
 
     def copy(entry: JarEntry) {
-      jo.putNextEntry(entry)
-      IOUtils.copy(ji, jo)
+      jo.putNextEntry(new JarEntry(entry.getName))
+      val maybeFix = if(entry.getName().endsWith(".class")) new ByteArrayInputStream(fixer.fix(ji)) else ji
+      IOUtils.copy(maybeFix, jo)
     }
 
     entries.foreach(copy)
